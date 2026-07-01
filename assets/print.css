@@ -1,0 +1,22 @@
+/* Regras aplicadas SÓ na impressão (window.print / Ctrl+P). */
+@media print {
+  /* Esconde tudo que for marcado como .no-print (botões, barra de ações). */
+  .no-print {
+    display: none !important;
+  }
+  /* O documento ocupa a folha inteira, sem sombra nem cantos. */
+  .documento {
+    box-shadow: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  /* Mantém cada seção inteira na mesma folha (não separa título do conteúdo). */
+  .secao {
+    break-inside: avoid;
+    page-break-inside: avoid; /* compatibilidade com navegadores antigos */
+  }
+  /* Margem da página impressa. */
+  @page {
+    margin: 1.5cm;
+  }
+}
