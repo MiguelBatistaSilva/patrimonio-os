@@ -84,6 +84,46 @@ Conceito: só o PC do chefe RODA o app; os colegas só abrem no navegador `http:
 
 ---
 
+## Fase 10 — Atualizações via Git (versionamento)
+
+Objetivo: atualizar o app na máquina do chefe com um `git pull`, sem cópia manual.
+Modelo: você programa na SUA máquina → `git push`; a máquina do chefe só RECEBE (`git pull`).
+Repositório: **`https://github.com/MiguelBatistaSilva/patrimonio-os.git`** (privado).
+
+### 10a. Conexão inicial — só UMA vez, na máquina do chefe
+
+- [ ] Instalar o **Git for Windows** (git-scm.com/download/win). Opções padrão; instala no
+      perfil do usuário, **sem admin**.
+- [ ] Abrir o **Git Bash** (ou cmd/PowerShell) **dentro da pasta do projeto** e rodar:
+  ```
+  git init -b main
+  git remote add origin https://github.com/MiguelBatistaSilva/patrimonio-os.git
+  git fetch origin
+  git reset --hard origin/main
+  git branch --set-upstream-to=origin/main main
+  ```
+  - No `git fetch`, abre a janela de login do GitHub (Git Credential Manager) → autentique
+    **uma vez** (fica guardado para sempre).
+  - ⚠️ Usar a **URL HTTPS** (acima), não SSH — o login é por janelinha, sem gerar chave.
+  - O `git reset --hard` **alinha o código ao GitHub**, mas **NÃO toca** em `.env`, `.venv`,
+    `.web`, `.states` nem no banco (são ignorados/não-rastreados). A configuração local fica intacta.
+- [ ] Conferir: `git status` → deve dizer *"working tree clean"* e *"up to date with origin/main"*.
+
+### 10b. Atualizar (sempre que houver versão nova)
+
+- [ ] Abrir o terminal **dentro da pasta do projeto**:
+      `cd "C:\...\Asset Management Section"`
+- [ ] `git pull`
+- [ ] Se a atualização incluir mudança no banco (migration), rodar também (venv ativado):
+      `python -m alembic upgrade head`   ← o desenvolvedor avisa quando for o caso.
+- [ ] Reiniciar o app (Ctrl+C e `iniciar_patrimonio.bat`, ou o atalho de startup).
+
+### 10c. Se uma atualização quebrar algo
+
+- [ ] Voltar para a versão anterior: `git reset --hard HEAD~1` → reiniciar o app.
+
+---
+
 ## Resolução de problemas
 
 - **Tela abre mas fica "carregando"/não conecta de outro PC:** `APP_HOST` errado no `.env`
