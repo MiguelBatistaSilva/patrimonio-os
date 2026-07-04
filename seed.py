@@ -10,6 +10,8 @@ existe e só adiciona o que falta — nunca duplica.
     ./.venv/Scripts/python.exe seed.py
 """
 
+import os
+
 from services.database import SessionLocal
 from services.security import hash_password
 from models.user import User
@@ -22,11 +24,13 @@ from models.dominio import (
     Setor,
 )
 
-# --- Primeiro usuário admin (edite estas 3 linhas) ---
-# É com estes dados que você vai logar no sistema. Troque a senha por uma sua.
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "tjce@123"
-ADMIN_NOME = "Administrador"
+# --- Primeiro usuário admin ---
+# NUNCA colocamos a senha aqui no código (este arquivo vai para o git público).
+# A senha vem do .env, na variável ADMIN_PASSWORD — do mesmo jeito que a DATABASE_URL.
+# Usuário e nome têm um padrão, mas também podem vir do .env se você quiser trocar.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_NOME = os.getenv("ADMIN_NOME", "Administrador")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 # Mapa: para cada tabela de domínio, a lista de valores iniciais.
 # Ajuste estas listas à vontade — é exatamente o que o admin poderá fazer pela tela depois.
@@ -60,6 +64,15 @@ def seed_admin(db) -> None:
     # Usa as constantes definidas lá em cima. Simples e à vista.
     if db.query(User).filter_by(username=ADMIN_USERNAME).first():
         print(f"   (admin '{ADMIN_USERNAME}' já existe — pulando)")
+        return
+
+    # Sem senha no .env não dá para criar o admin com segurança: avisa e para.
+    if not ADMIN_PASSWORD:
+        print(
+            "   [ATENÇÃO] admin NÃO criado: defina ADMIN_PASSWORD no arquivo .env\n"
+            '   Exemplo (na raiz, dentro do .env):  ADMIN_PASSWORD=umaSenhaForte\n'
+            "   Depois rode o seed de novo."
+        )
         return
 
     db.add(

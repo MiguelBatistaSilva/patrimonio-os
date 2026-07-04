@@ -191,3 +191,10 @@ layout_old/
 .claude/
 # Trava de runtime do Reflex
 reflex.lock/
+# Arquivos que o auto-updater cria na máquina onde roda (não versionar)
+_backup/
+_update.log
+# Notas de trabalho / briefing (uso local, não faz parte do app)
+HANDOFF.md
+# Pasta de referência de outro projeto (não faz parte deste app)
+Outa_Aplicação/
