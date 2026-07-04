@@ -71,9 +71,15 @@ def ler_versao_local() -> str:
 
 
 def ler_versao_remota() -> str | None:
-    """Busca o version.json publicado no GitHub. Devolve None se não conseguir."""
+    """Busca o version.json publicado no GitHub. Devolve None se não conseguir.
+
+    Timeout curto (3s) de propósito: no dia a dia o chefe usa a rede cabeada, cujo
+    firewall bloqueia o GitHub. Como o firewall engole o pacote em silêncio, o
+    urlopen esperaria o timeout inteiro ANTES de desistir e abrir o app. 3s mantém
+    a espera diária baixa; no dia de atualizar (no 5G) a resposta vem bem antes disso.
+    """
     req = urllib.request.Request(VERSION_URL, headers=UA)
-    with urllib.request.urlopen(req, timeout=10) as r:
+    with urllib.request.urlopen(req, timeout=3) as r:
         return json.loads(r.read().decode("utf-8")).get("version")
 
 

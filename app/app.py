@@ -82,6 +82,13 @@ app.add_page(
     title="Nova O.S. — Patrimônio",
     on_load=[AuthState.check_operacional, OsState.carregar_opcoes],
 )
+# Edição: reaproveita o formulário, mas pré-preenchido. Só admin (check_admin).
+app.add_page(
+    ordem_form_page,
+    route="/ordens/[os_id]/editar",
+    title="Editar O.S. — Patrimônio",
+    on_load=[AuthState.check_admin, OsState.carregar_edicao],
+)
 # Detalhe: rota DINÂMICA — [os_id] é um curinga que vira parâmetro lido no state.
 app.add_page(
     ordem_detalhe_page,

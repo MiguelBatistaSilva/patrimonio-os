@@ -15,7 +15,7 @@ from models.dominio import (
     Modalidade,
     Setor,
 )
-from models.ordem_servico import OrdemServico, OsEquipe
+from models.ordem_servico import OrdemServico, OsEquipe, OsItem
 
 __all__ = [
     "User",
@@ -28,4 +28,5 @@ __all__ = [
     "Setor",
     "OrdemServico",
     "OsEquipe",
+    "OsItem",
 ]

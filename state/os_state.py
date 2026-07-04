@@ -45,12 +45,26 @@ class LinhaOS:
 
 
 @dataclass
+class ItemOS:
+    """Um item (bem) de uma O.S., achatado para a tela — tudo texto.
+
+    Campos vazios viram "" (nunca None), para a tela/impressão não ter que lidar com
+    None: um campo em branco sai simplesmente em branco no papel.
+    """
+
+    tombo_ns: str = ""
+    descricao: str = ""
+    origem: str = ""
+    destino: str = ""
+
+
+@dataclass
 class DetalheOS:
     """Todos os dados de uma O.S., já "achatados" para a tela de detalhe.
 
-    Os nomes das FKs (modalidade, setor...) já vêm resolvidos como texto, e a equipe
-    como lista de nomes. Todos os campos têm default, então DetalheOS() cria um vazio —
-    útil como valor inicial (evita lidar com None na tela).
+    Os nomes das FKs (modalidade, setor...) já vêm resolvidos como texto, a equipe
+    como lista de nomes e os itens como lista de ItemOS. Todos os campos têm default,
+    então DetalheOS() cria um vazio — útil como valor inicial (evita lidar com None).
     """
 
     id: int = 0
@@ -72,13 +86,29 @@ class DetalheOS:
     contato: str = "—"
     ambito: str = "—"
     endereco: str = "—"
-    causa: str = "—"
     descricao: str = "—"
     autorizado_por: str = "—"
     data_conclusao: str = "—"
     hora_inicial: str = "—"
     hora_final: str = "—"
     equipe: list[str] = field(default_factory=list)
+    itens: list[ItemOS] = field(default_factory=list)
+
+
+# Campos "soltos" do formulário (name=...). São a base do dict de valores iniciais:
+# vazios na criação, preenchidos na edição. NÃO inclui requer_rota (bool, tratado à
+# parte) nem equipe/itens (controlados pelo state).
+CAMPOS_FORM = (
+    "data_abertura", "hora_abertura", "responsavel", "contato", "processo_chamado",
+    "ambito", "autorizado_por", "endereco", "descricao",
+    "modalidade_id", "classificacao_id", "peso_id", "meio_id",
+    "setor_demandante_id", "unidade_atendimento_id", "tipo_veiculo_id",
+)
+
+
+def _form_vazio() -> dict[str, str]:
+    """Valores iniciais em branco — o formulário de CRIAÇÃO nasce assim."""
+    return {campo: "" for campo in CAMPOS_FORM}
 
 
 class OsState(rx.State):
@@ -169,6 +199,45 @@ class OsState(rx.State):
         else:
             self.equipe_selecionada = [f.valor for f in self.funcionarios]
 
+    # Itens do formulário de criação. Cada linha é um dict com as 4 colunas; o operador
+    # adiciona/remove linhas e digita nos campos. É controlado pelo state (não vai no
+    # form_data) — mesma filosofia da equipe. Começa vazio: itens são OPCIONAIS.
+    itens_form: list[dict[str, str]] = []
+
+    # Edição: o MESMO formulário serve para criar e editar. editando_id = 0 significa
+    # "criando"; > 0 significa "editando aquela O.S.". form_inicial alimenta o
+    # default_value de cada campo solto (vazio na criação, preenchido na edição).
+    editando_id: int = 0
+    form_inicial: dict[str, str] = _form_vazio()
+    form_requer_rota: bool = False
+
+    @staticmethod
+    def _item_vazio() -> dict[str, str]:
+        return {"tombo_ns": "", "descricao": "", "origem": "", "destino": ""}
+
+    def adicionar_item(self):
+        # Reatribui a lista (em vez de mutar) para o Reflex perceber e redesenhar.
+        self.itens_form = self.itens_form + [self._item_vazio()]
+
+    def remover_item(self, idx: int):
+        self.itens_form = [it for i, it in enumerate(self.itens_form) if i != idx]
+
+    def set_item_campo(self, idx: int, campo: str, valor: str):
+        """Atualiza um campo de uma linha. Copiamos os dicts para o Reflex ver a mudança."""
+        novos = [dict(it) for it in self.itens_form]
+        novos[idx][campo] = valor
+        self.itens_form = novos
+
+    @rx.var
+    def itens_impressao_vazias(self) -> list[int]:
+        """Quantas linhas EM BRANCO faltam para a tabela de itens da impressão chegar a 10.
+
+        A impressão mostra os itens digitados + linhas em branco até completar 10, para
+        o funcionário poder anotar bens a mais à mão. Devolve os índices dessas linhas.
+        """
+        faltam = 10 - len(self.detalhe.itens)
+        return list(range(max(faltam, 0)))
+
     # ── READ: listagem ──
     def preparar_lista(self):
         """on_load da lista: carrega as opções do filtro de modalidade + a lista."""
@@ -256,13 +325,21 @@ class OsState(rx.State):
                 contato=o.contato or "—",
                 ambito=o.ambito or "—",
                 endereco=o.endereco or "—",
-                causa=o.causa or "—",
                 descricao=o.descricao or "—",
                 autorizado_por=o.autorizado_por or "—",
                 data_conclusao=o.data_conclusao.strftime("%d/%m/%Y") if o.data_conclusao else "—",
                 hora_inicial=o.hora_inicial.strftime("%H:%M") if o.hora_inicial else "—",
                 hora_final=o.hora_final.strftime("%H:%M") if o.hora_final else "—",
                 equipe=[v.funcionario.nome for v in o.equipe],
+                itens=[
+                    ItemOS(
+                        tombo_ns=i.tombo_ns or "",
+                        descricao=i.descricao or "",
+                        origem=i.origem or "",
+                        destino=i.destino or "",
+                    )
+                    for i in o.itens
+                ],
             )
             self.encontrada = True
         finally:
@@ -287,11 +364,73 @@ class OsState(rx.State):
             self.opts_peso = opc(Peso)
             self.funcionarios = opc(Funcionario)
             self.equipe_selecionada = []  # começa o formulário com ninguém marcado
+            self.itens_form = []  # começa sem nenhum item (a seção é opcional)
+            # Modo criação: sem O.S. em edição e todos os campos em branco.
+            self.editando_id = 0
+            self.form_inicial = _form_vazio()
+            self.form_requer_rota = False
         finally:
             db.close()
 
-    # ── CREATE ──
-    async def criar(self, form_data: dict):
+    # ── Carrega o formulário JÁ PREENCHIDO para editar uma O.S. existente ──
+    def carregar_edicao(self):
+        """on_load da rota /ordens/[os_id]/editar: dropdowns + valores da O.S. no form."""
+        self.carregar_opcoes()  # carrega os dropdowns e zera tudo (modo criação)
+
+        os_id = self.router.page.params.get("os_id")
+        try:
+            oid = int(os_id)
+        except (TypeError, ValueError):
+            self.editando_id = 0
+            return  # sem id válido: fica em modo criação (form vazio)
+
+        db = SessionLocal()
+        try:
+            o = crud_os.obter(db, oid)
+            if o is None:
+                self.editando_id = 0
+                return
+
+            def fk_txt(valor) -> str:
+                # id da FK como texto (casa com o value das opções do select); "" se None.
+                return str(valor) if valor else ""
+
+            self.editando_id = o.id
+            self.form_inicial = {
+                "data_abertura": o.data_abertura.isoformat() if o.data_abertura else "",
+                "hora_abertura": o.hora_abertura.strftime("%H:%M") if o.hora_abertura else "",
+                "responsavel": o.responsavel or "",
+                "contato": o.contato or "",
+                "processo_chamado": o.processo_chamado or "",
+                "ambito": o.ambito or "",
+                "autorizado_por": o.autorizado_por or "",
+                "endereco": o.endereco or "",
+                "descricao": o.descricao or "",
+                "modalidade_id": fk_txt(o.modalidade_id),
+                "classificacao_id": fk_txt(o.classificacao_id),
+                "peso_id": fk_txt(o.peso_id),
+                "meio_id": fk_txt(o.meio_id),
+                "setor_demandante_id": fk_txt(o.setor_demandante_id),
+                "unidade_atendimento_id": fk_txt(o.unidade_atendimento_id),
+                "tipo_veiculo_id": fk_txt(o.tipo_veiculo_id),
+            }
+            self.form_requer_rota = o.requer_rota
+            # Equipe e itens já são controlados pelo state: basta pré-carregar.
+            self.equipe_selecionada = [str(v.funcionario_id) for v in o.equipe]
+            self.itens_form = [
+                {
+                    "tombo_ns": i.tombo_ns or "",
+                    "descricao": i.descricao or "",
+                    "origem": i.origem or "",
+                    "destino": i.destino or "",
+                }
+                for i in o.itens
+            ]
+        finally:
+            db.close()
+
+    # ── CREATE / UPDATE (o mesmo formulário serve para os dois) ──
+    async def salvar(self, form_data: dict):
         self.error_message = ""
 
         # Os dois únicos campos obrigatórios (o resto a O.S. pode nascer sem).
@@ -318,7 +457,6 @@ class OsState(rx.State):
                 "ambito": txt("ambito"),
                 "endereco": txt("endereco"),
                 "requer_rota": form_data.get("requer_rota") in ("on", "true", "1", True),
-                "causa": txt("causa"),
                 "descricao": txt("descricao"),
                 "autorizado_por": txt("autorizado_por"),
                 "meio_id": fk("meio_id"),
@@ -333,19 +471,34 @@ class OsState(rx.State):
             self.error_message = "Data ou hora em formato inválido."
             return
 
-        # Pega o id do usuário logado de outro state (operador_id da O.S.).
-        auth = await self.get_state(AuthState)
-
         # As checkboxes guardam ids como texto; o crud espera inteiros.
         equipe = [int(x) for x in self.equipe_selecionada]
 
+        # Monta os itens a gravar: descarta linhas TOTALMENTE em branco (o operador pode
+        # ter adicionado uma linha e não preenchido). Nas que sobram, cada campo vazio
+        # vira None. Campos individuais podem ficar vazios (ex.: um bem sem tombo).
+        itens = []
+        for linha in self.itens_form:
+            campos = {c: (linha.get(c) or "").strip() or None for c in
+                      ("tombo_ns", "descricao", "origem", "destino")}
+            if any(campos.values()):
+                itens.append(campos)
+
         db = SessionLocal()
         try:
-            crud_os.criar(db, int(auth.user_id), dados, equipe)
+            if self.editando_id:
+                # EDIÇÃO: sobrescreve os dados da O.S. existente; número/operador intactos.
+                crud_os.atualizar(db, self.editando_id, dados, equipe, itens)
+                destino = f"/ordens/{self.editando_id}"  # volta pro detalhe corrigido
+            else:
+                # CRIAÇÃO: operador vem do usuário logado (outro state).
+                auth = await self.get_state(AuthState)
+                crud_os.criar(db, int(auth.user_id), dados, equipe, itens)
+                destino = "/ordens"  # volta pra lista, já com a nova O.S.
         finally:
             db.close()
 
-        return rx.redirect("/ordens")  # volta para a lista, já com a nova O.S.
+        return rx.redirect(destino)
 
     # ── Mudança de status (na tela de detalhe) ──
     def ao_abrir_dialog(self, aberto: bool):

@@ -8,4 +8,4 @@ Ao publicar uma versão nova, suba este número E o de version.json (os dois igu
 Formato: MAIOR.MENOR.CORRECAO  (ex.: 1.0.0 -> 1.0.1 numa correção; -> 1.1.0 numa melhoria).
 """
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"

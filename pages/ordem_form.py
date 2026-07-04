@@ -12,10 +12,19 @@ from state.os_state import OsState
 
 
 def _campo(label: str, name: str, **input_props) -> rx.Component:
-    """Rótulo + input de texto (ou date/time, via input_props)."""
+    """Rótulo + input de texto (ou date/time, via input_props).
+
+    default_value vem do state (form_inicial): em branco na criação, preenchido na
+    edição. É "não controlado" — o valor final volta pelo form_data (name=), como antes.
+    """
     return rx.vstack(
         rx.text(label, size="2", weight="medium"),
-        rx.input(name=name, width="100%", **input_props),
+        rx.input(
+            name=name,
+            default_value=OsState.form_inicial[name],
+            width="100%",
+            **input_props,
+        ),
         spacing="1",
         align="start",
         width="100%",
@@ -35,6 +44,7 @@ def _select(label: str, name: str, opcoes) -> rx.Component:
                 ),
             ),
             name=name,
+            default_value=OsState.form_inicial[name],
         ),
         spacing="1",
         align="start",
@@ -45,7 +55,12 @@ def _select(label: str, name: str, opcoes) -> rx.Component:
 def _area(label: str, name: str) -> rx.Component:
     return rx.vstack(
         rx.text(label, size="2", weight="medium"),
-        rx.text_area(name=name, width="100%", rows="3"),
+        rx.text_area(
+            name=name,
+            default_value=OsState.form_inicial[name],
+            width="100%",
+            rows="3",
+        ),
         spacing="1",
         align="start",
         width="100%",
@@ -94,11 +109,82 @@ def _equipe() -> rx.Component:
     )
 
 
+def _linha_item(item, idx) -> rx.Component:
+    """Uma linha editável de item: 4 campos de texto + botão de remover.
+
+    Igual às checkboxes da equipe, estes inputs NÃO usam name= — são controlados pelo
+    state (itens_form). Cada tecla dispara set_item_campo(idx, campo, valor).
+    """
+
+    def campo(nome: str, placeholder: str) -> rx.Component:
+        return rx.input(
+            value=item[nome],
+            on_change=lambda v: OsState.set_item_campo(idx, nome, v),
+            placeholder=placeholder,
+            width="100%",
+        )
+
+    # Na criação preenchemos só Tombo/N/S e Descrição (o bem movimentado). Origem e
+    # Destino ficam em branco no modelo — a impressão deixa espaço para anotá-los à mão.
+    return rx.hstack(
+        campo("tombo_ns", "Tombo ou N/S"),
+        campo("descricao", "Descrição (bem movimentado)"),
+        rx.icon_button(
+            rx.icon("trash-2", size=16),
+            on_click=OsState.remover_item(idx),
+            type="button",
+            color_scheme="red",
+            variant="soft",
+        ),
+        spacing="2",
+        width="100%",
+        align="center",
+    )
+
+
+def _itens() -> rx.Component:
+    """Seção de Itens: uma linha por bem. Opcional — a O.S. pode nascer sem nenhum item."""
+    return rx.vstack(
+        rx.text("Itens", size="2", weight="medium"),
+        rx.text(
+            "Bens movimentados/atendidos nesta O.S. Opcional — adicione uma linha por item.",
+            size="1",
+            color=rx.color("gray", 10),
+        ),
+        rx.cond(
+            OsState.itens_form.length() > 0,
+            rx.vstack(
+                rx.foreach(OsState.itens_form, _linha_item),
+                spacing="2",
+                width="100%",
+            ),
+        ),
+        rx.button(
+            rx.icon("plus", size=16),
+            "Adicionar item",
+            on_click=OsState.adicionar_item,
+            type="button",
+            variant="soft",
+            size="2",
+        ),
+        spacing="2",
+        align="start",
+        width="100%",
+    )
+
+
 def ordem_form_page() -> rx.Component:
     return page_layout(
-        rx.heading("Nova Ordem de Serviço", size="7"),
+        rx.heading(
+            rx.cond(OsState.editando_id != 0, "Editar Ordem de Serviço", "Nova Ordem de Serviço"),
+            size="7",
+        ),
         rx.text(
-            "O número é gerado automaticamente ao salvar. (* campos obrigatórios)",
+            rx.cond(
+                OsState.editando_id != 0,
+                "Corrija os dados e salve. O número e o operador não mudam. (* campos obrigatórios)",
+                "O número é gerado automaticamente ao salvar. (* campos obrigatórios)",
+            ),
             color=rx.color("gray", 10),
         ),
         rx.form.root(
@@ -123,9 +209,13 @@ def ordem_form_page() -> rx.Component:
                     width="100%",
                 ),
                 _campo("Endereço", "endereco"),
-                _area("Causa", "causa"),
                 _area("Descrição", "descricao"),
-                rx.checkbox("Requer rota", name="requer_rota"),
+                _itens(),
+                rx.checkbox(
+                    "Requer rota",
+                    name="requer_rota",
+                    default_checked=OsState.form_requer_rota,
+                ),
                 _equipe(),
                 rx.cond(
                     OsState.error_message != "",
@@ -149,7 +239,7 @@ def ordem_form_page() -> rx.Component:
                 width="100%",
                 align="start",
             ),
-            on_submit=OsState.criar,
+            on_submit=OsState.salvar,
             reset_on_submit=False,
             width="100%",
         ),

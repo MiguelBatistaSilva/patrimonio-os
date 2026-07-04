@@ -8,6 +8,7 @@ import reflex as rx
 
 from components.layout import page_layout
 from state.os_state import OsState
+from state.auth_state import AuthState
 
 
 def _info(label: str, valor) -> rx.Component:
@@ -104,6 +105,19 @@ def _detalhe() -> rx.Component:
             rx.badge(d.status, size="2"),
             rx.spacer(),
             _acoes_status(d),
+            # Editar: só admin vê (a rota também é travada por check_admin).
+            rx.cond(
+                AuthState.is_admin,
+                rx.link(
+                    rx.button(
+                        rx.icon("pencil", size=16),
+                        "Editar",
+                        variant="soft",
+                        size="2",
+                    ),
+                    href="/ordens/" + d.id.to_string() + "/editar",
+                ),
+            ),
             rx.link(
                 rx.button(
                     rx.icon("printer", size=16),
@@ -142,7 +156,6 @@ def _detalhe() -> rx.Component:
             width="100%",
         ),
         _info("Endereço", d.endereco),
-        _info("Causa", d.causa),
         _info("Descrição", d.descricao),
         rx.divider(),
         rx.text("Equipe", weight="medium", size="2"),
@@ -154,6 +167,35 @@ def _detalhe() -> rx.Component:
                 spacing="2",
             ),
             rx.text("Sem equipe atribuída.", size="2", color=rx.color("gray", 10)),
+        ),
+        rx.divider(),
+        rx.text("Itens", weight="medium", size="2"),
+        rx.cond(
+            d.itens.length() > 0,
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Tombo ou N/S"),
+                        rx.table.column_header_cell("Descrição"),
+                        rx.table.column_header_cell("Origem"),
+                        rx.table.column_header_cell("Destino"),
+                    ),
+                ),
+                rx.table.body(
+                    rx.foreach(
+                        d.itens,
+                        lambda it: rx.table.row(
+                            rx.table.cell(it.tombo_ns),
+                            rx.table.cell(it.descricao),
+                            rx.table.cell(it.origem),
+                            rx.table.cell(it.destino),
+                        ),
+                    ),
+                ),
+                variant="surface",
+                width="100%",
+            ),
+            rx.text("Sem itens cadastrados.", size="2", color=rx.color("gray", 10)),
         ),
         spacing="4",
         width="100%",

@@ -18,11 +18,23 @@ from state.auth_state import AuthState
 
 
 def _spinner() -> rx.Component:
-    """Tela de carregamento — fica no ar até sabermos se o usuário está logado."""
+    """Tela de carregamento de página INTEIRA — enquanto não sabemos se há login."""
     return rx.center(
         rx.spinner(size="3"),
         width="100%",
         min_height="100vh",
+    )
+
+
+def _conteudo_carregando() -> rx.Component:
+    """Spinner só da ÁREA DE CONTEÚDO (a sidebar/topbar continuam no ar).
+
+    Aparece por um instante a cada navegação, enquanto o on_load da nova página roda
+    (nesse intervalo o Reflex deixa is_hydrated=False). É o que troca — não a casca."""
+    return rx.center(
+        rx.spinner(size="3"),
+        width="100%",
+        min_height="60vh",
     )
 
 
@@ -59,14 +71,26 @@ def _shell(*content: rx.Component) -> rx.Component:
 
 
 def page_layout(*content: rx.Component) -> rx.Component:
-    """Layout base das páginas protegidas, com guarda contra o "flash" de conteúdo.
+    """Layout base das páginas protegidas.
 
-    Só renderiza a casca quando a página JÁ hidratou (is_hydrated) E o usuário está
-    logado. Enquanto isso, mostra o spinner. Assim, quem não está logado nunca chega a
-    ver o conteúdo protegido — vê o spinner e é redirecionado pelo check_auth do on_load.
+    Dois portões, de propósito separados, para a sidebar NÃO piscar ao navegar:
+
+    - Topo (`is_logged_in`): decide se mostra a CASCA ou o spinner de página inteira.
+      Vem do LocalStorage e NÃO oscila durante a navegação — então, uma vez logado, a
+      casca (sidebar + topbar) fica montada e estável entre as páginas.
+    - Interno (`is_hydrated`): só a ÁREA DE CONTEÚDO. A cada navegação o Reflex zera o
+      is_hydrated enquanto o on_load roda; aqui isso troca apenas o miolo por um spinner
+      rápido, sem mexer na casca. Assim, quem não está logado nunca vê conteúdo protegido
+      (o check_auth do on_load redireciona), e quem está logado só vê o conteúdo trocar.
     """
     return rx.cond(
-        rx.State.is_hydrated & AuthState.is_logged_in,
-        _shell(*content),
+        AuthState.is_logged_in,
+        _shell(
+            rx.cond(
+                rx.State.is_hydrated,
+                rx.fragment(*content),
+                _conteudo_carregando(),
+            ),
+        ),
         _spinner(),
     )

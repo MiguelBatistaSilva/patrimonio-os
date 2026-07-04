@@ -45,7 +45,6 @@ class OrdemServico(Base, TimestampMixin):
     ambito: Mapped[str | None]
     endereco: Mapped[str | None]
     requer_rota: Mapped[bool] = mapped_column(default=False)
-    causa: Mapped[str | None]
     descricao: Mapped[str | None]
     autorizado_por: Mapped[str | None]
 
@@ -86,6 +85,14 @@ class OrdemServico(Base, TimestampMixin):
         back_populates="ordem", cascade="all, delete-orphan"
     )
 
+    # itens: bens movimentados/atendidos nesta O.S. (1:N via os_item). Mesmo padrão da
+    # equipe. order_by garante que saiam na impressão na ordem em que foram cadastrados.
+    itens: Mapped[list["OsItem"]] = relationship(
+        back_populates="ordem",
+        cascade="all, delete-orphan",
+        order_by="OsItem.id",
+    )
+
 
 class OsEquipe(Base):
     """Tabela de junção: liga uma O.S. a cada funcionário que atuou nela.
@@ -101,3 +108,27 @@ class OsEquipe(Base):
 
     ordem: Mapped["OrdemServico"] = relationship(back_populates="equipe")
     funcionario: Mapped["Funcionario"] = relationship()
+
+
+class OsItem(Base):
+    """Um bem movimentado/atendido numa O.S.: tombo (ou nº de série), descrição, origem
+    e destino.
+
+    Antes isto só existia como uma tabela EM BRANCO no papel (preenchida à mão). Agora
+    virou dado: cada O.S. tem zero-ou-mais itens (1:N), cadastrados já na criação. É o
+    mesmo desenho da equipe (OsEquipe) — uma linha por item, ligada à O.S. pelo os_id.
+
+    Todos os campos são opcionais: o operador pode deixar um em branco (ex.: um bem sem
+    tombo). A ausência de itens também é permitida (a seção é opcional na criação).
+    """
+
+    __tablename__ = "os_item"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    os_id: Mapped[int] = mapped_column(ForeignKey("ordem_servico.id"))
+    tombo_ns: Mapped[str | None]  # "Tombo ou N/S" no formulário/impressão
+    descricao: Mapped[str | None]
+    origem: Mapped[str | None]
+    destino: Mapped[str | None]
+
+    ordem: Mapped["OrdemServico"] = relationship(back_populates="itens")

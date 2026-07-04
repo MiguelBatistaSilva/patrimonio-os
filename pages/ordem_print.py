@@ -67,6 +67,16 @@ def _linha_branca(label: str) -> rx.Component:
     )
 
 
+def _linha_item_preenchida(it) -> rx.Component:
+    """Linha da tabela de itens com dados reais. Campo vazio ("") sai em branco."""
+    return rx.table.row(
+        rx.table.cell(it.tombo_ns, height="30px"),
+        rx.table.cell(it.descricao),
+        rx.table.cell(it.origem),
+        rx.table.cell(it.destino),
+    )
+
+
 def _linha_item_vazia() -> rx.Component:
     return rx.table.row(
         rx.table.cell(" ", height="30px"),
@@ -132,7 +142,6 @@ def _documento() -> rx.Component:
                 width="100%",
             ),
             _campo("Endereço", d.endereco),
-            _campo("Causa", d.causa),
         ),
         # Atuação = quem ABRE a ordem de serviço.
         _secao(
@@ -203,7 +212,12 @@ def _documento() -> rx.Component:
                         rx.table.column_header_cell("Destino"),
                     ),
                 ),
-                rx.table.body(*[_linha_item_vazia() for _ in range(10)]),
+                rx.table.body(
+                    # Primeiro os itens digitados na criação...
+                    rx.foreach(d.itens, _linha_item_preenchida),
+                    # ...depois linhas em branco até completar 10, para anotar à mão.
+                    rx.foreach(OsState.itens_impressao_vazias, lambda _: _linha_item_vazia()),
+                ),
                 variant="surface",
                 width="100%",
             ),

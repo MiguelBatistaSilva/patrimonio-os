@@ -7,7 +7,7 @@ negócio que o humano lê (ex.: H0001). O operador NUNCA digita esse número.
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models.ordem_servico import OrdemServico, OsEquipe
+from models.ordem_servico import OrdemServico, OsEquipe, OsItem
 from models.dominio import Modalidade
 from config import OS_PREFIXO, OS_DIGITOS
 
@@ -40,12 +40,16 @@ def criar(
     operador_id: int,
     dados: dict,
     funcionario_ids: list[int] | None = None,
+    itens: list[dict] | None = None,
 ) -> OrdemServico:
-    """CREATE — gera o número sozinho, monta a equipe e grava a O.S.
+    """CREATE — gera o número sozinho, monta a equipe e os itens, e grava a O.S.
 
     - `dados`: os campos do formulário, já validados/convertidos pelo state.
     - `operador_id`: vem do usuário logado (não do formulário).
     - `funcionario_ids`: quem vai na equipe (N:N via os_equipe).
+    - `itens`: bens movimentados/atendidos; cada item é um dict com as chaves
+      tombo_ns/descricao/origem/destino (1:N via os_item). Opcional — a O.S. pode
+      nascer sem nenhum item.
     O status nasce "Pendente" (default no model).
     """
     ordem = OrdemServico(
@@ -58,7 +62,33 @@ def criar(
     ordem.equipe = [
         OsEquipe(funcionario_id=fid) for fid in (funcionario_ids or [])
     ]
+    # Mesma ideia para os itens: uma linha de os_item por dict. O ** espalha as chaves
+    # (tombo_ns/descricao/origem/destino) direto no construtor do model.
+    ordem.itens = [OsItem(**item) for item in (itens or [])]
     db.add(ordem)
+    db.commit()
+    return ordem
+
+
+def atualizar(
+    db: Session,
+    os_id: int,
+    dados: dict,
+    funcionario_ids: list[int] | None = None,
+    itens: list[dict] | None = None,
+) -> OrdemServico:
+    """UPDATE — corrige os dados de abertura de uma O.S. já existente.
+
+    NÃO mexe em `numero`, `operador` nem no ciclo de vida (status/datas de conclusão):
+    só nos campos que o formulário de edição oferece. Equipe e itens são SUBSTITUÍDOS
+    por inteiro — ao reatribuir as listas, o cascade delete-orphan apaga as linhas
+    antigas de os_equipe/os_item e grava as novas.
+    """
+    ordem = _obter_ou_erro(db, os_id)
+    for campo, valor in dados.items():
+        setattr(ordem, campo, valor)
+    ordem.equipe = [OsEquipe(funcionario_id=fid) for fid in (funcionario_ids or [])]
+    ordem.itens = [OsItem(**item) for item in (itens or [])]
     db.commit()
     return ordem
 
