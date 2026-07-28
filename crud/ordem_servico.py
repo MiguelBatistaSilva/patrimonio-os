@@ -5,10 +5,11 @@ negócio que o humano lê (ex.: H0001). O operador NUNCA digita esse número.
 """
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from models.ordem_servico import OrdemServico, OsEquipe, OsItem
 from models.dominio import Modalidade
+from models.funcionario import Funcionario
 from config import OS_PREFIXO, OS_DIGITOS
 
 
@@ -118,6 +119,40 @@ def listar(
     return consulta.order_by(OrdemServico.id.desc()).all()
 
 
+def listar_para_exportacao(db: Session, data_de=None, data_ate=None) -> list[OrdemServico]:
+    """READ para o CSV: as O.S. do período, com TUDO já carregado de uma vez.
+
+    Por que não reusar o `listar` acima? Porque a exportação lê muitas O.S. e, de cada
+    uma, o nome de 8 tabelas ligadas + equipe + itens. Do jeito preguiçoso (padrão do
+    SQLAlchemy), cada um desses acessos vira uma consulta EXTRA por O.S. — é o clássico
+    problema "N+1": 500 O.S. viram milhares de idas ao banco e o botão parece travado.
+
+    As opções abaixo resolvem isso: `joinedload` traz as tabelas de 1-para-1 no mesmo
+    SELECT (JOIN), e `selectinload` traz as listas (equipe/itens) numa segunda consulta
+    só — em vez de uma por O.S.
+
+    Ordem CRESCENTE (mais antiga primeiro), que é como se lê um relatório na planilha —
+    ao contrário da tela de lista, que mostra as mais recentes em cima.
+    """
+    consulta = db.query(OrdemServico).options(
+        joinedload(OrdemServico.operador),
+        joinedload(OrdemServico.meio),
+        joinedload(OrdemServico.tipo_veiculo),
+        joinedload(OrdemServico.classificacao),
+        joinedload(OrdemServico.modalidade),
+        joinedload(OrdemServico.peso),
+        joinedload(OrdemServico.setor_demandante),
+        joinedload(OrdemServico.unidade_atendimento),
+        selectinload(OrdemServico.equipe).joinedload(OsEquipe.funcionario),
+        selectinload(OrdemServico.itens),
+    )
+    if data_de:
+        consulta = consulta.filter(OrdemServico.data_abertura >= data_de)
+    if data_ate:
+        consulta = consulta.filter(OrdemServico.data_abertura <= data_ate)
+    return consulta.order_by(OrdemServico.id).all()
+
+
 def obter(db: Session, os_id: int) -> OrdemServico | None:
     """READ de uma só — usada depois na tela de detalhe/impressão."""
     return db.get(OrdemServico, os_id)
@@ -164,27 +199,127 @@ def reabrir(db: Session, os_id: int):
 
 
 # ── Agregações para o dashboard (contar e agrupar no próprio banco) ──
+#
+# Todas aceitam um PERÍODO opcional (data_de/data_ate, sobre a data de ABERTURA).
+# Sem período = desde sempre, que era o comportamento antes de o filtro existir.
 
-def contagem_por_status(db: Session) -> dict[str, int]:
+def _periodo(consulta, data_de, data_ate):
+    """Empilha o filtro de período numa consulta, ignorando as datas não informadas."""
+    if data_de:
+        consulta = consulta.filter(OrdemServico.data_abertura >= data_de)
+    if data_ate:
+        consulta = consulta.filter(OrdemServico.data_abertura <= data_ate)
+    return consulta
+
+
+def contagem_por_status(db: Session, data_de=None, data_ate=None) -> dict[str, int]:
     """Quantas O.S. há em cada status. SQL: GROUP BY status + COUNT.
 
     Devolve algo como {"Pendente": 3, "Concluída": 5, "Cancelada": 1}.
     Deixamos o banco contar — é muito mais rápido que trazer tudo e contar em Python.
     """
-    linhas = (
-        db.query(OrdemServico.status, func.count(OrdemServico.id))
-        .group_by(OrdemServico.status)
-        .all()
-    )
+    consulta = db.query(OrdemServico.status, func.count(OrdemServico.id))
+    linhas = _periodo(consulta, data_de, data_ate).group_by(OrdemServico.status).all()
     return {status: total for status, total in linhas}
 
 
-def contagem_por_modalidade(db: Session) -> list[tuple[str, int]]:
-    """Quantas O.S. por modalidade, da mais usada para a menos. (Ignora O.S. sem modalidade.)"""
-    return (
+def contagem_por_modalidade(
+    db: Session, data_de=None, data_ate=None, limite: int | None = 8
+) -> list[tuple[str, int]]:
+    """Quantas O.S. por modalidade, da mais usada para a menos. (Ignora O.S. sem modalidade.)
+
+    `limite` corta nas mais frequentes — o cadastro tem 22 modalidades e o gráfico com
+    todas viraria uma lista interminável. Passe limite=None para trazer todas.
+    """
+    consulta = (
         db.query(Modalidade.nome, func.count(OrdemServico.id))
         .join(OrdemServico, OrdemServico.modalidade_id == Modalidade.id)
+    )
+    consulta = (
+        _periodo(consulta, data_de, data_ate)
         .group_by(Modalidade.nome)
         .order_by(func.count(OrdemServico.id).desc())
+    )
+    if limite:
+        consulta = consulta.limit(limite)
+    return consulta.all()
+
+
+def contagem_por_mes(db: Session, data_de=None, data_ate=None) -> list[tuple[int, int, int]]:
+    """Quantas O.S. foram abertas em cada mês: [(ano, mês, quantidade), ...].
+
+    `extract` puxa o ano e o mês da data direto no PostgreSQL, e o GROUP BY agrupa por
+    eles. Sai em ordem cronológica — é o gráfico de "como estamos indo ao longo do tempo".
+    """
+    ano = func.extract("year", OrdemServico.data_abertura)
+    mes = func.extract("month", OrdemServico.data_abertura)
+    consulta = db.query(ano, mes, func.count(OrdemServico.id))
+    linhas = _periodo(consulta, data_de, data_ate).group_by(ano, mes).order_by(ano, mes).all()
+    # extract devolve número decimal no PostgreSQL; viramos int para a tela.
+    return [(int(a), int(m), int(qtd)) for a, m, qtd in linhas]
+
+
+def contagem_por_funcionario(
+    db: Session, data_de=None, data_ate=None, limite: int = 12
+) -> list[tuple[str, int]]:
+    """Em quantas O.S. cada funcionário atuou — a carga de trabalho da equipe.
+
+    Uma O.S. com 3 pessoas conta 1 para cada uma; então a soma daqui é MAIOR que o
+    total de O.S. Isso é esperado: a pergunta aqui é "quanto cada um trabalhou".
+    """
+    consulta = (
+        db.query(Funcionario.nome, func.count(OsEquipe.id))
+        .join(OsEquipe, OsEquipe.funcionario_id == Funcionario.id)
+        .join(OrdemServico, OrdemServico.id == OsEquipe.os_id)
+    )
+    return (
+        _periodo(consulta, data_de, data_ate)
+        .group_by(Funcionario.nome)
+        .order_by(func.count(OsEquipe.id).desc())
+        .limit(limite)
+        .all()
+    )
+
+
+def tempo_medio_conclusao(db: Session, data_de=None, data_ate=None) -> float | None:
+    """Média de dias entre abrir e concluir. None se nenhuma O.S. foi concluída ainda.
+
+    No PostgreSQL, subtrair duas datas dá o número de dias — então o próprio banco
+    calcula a média. Conta só o que está Concluída e tem data de conclusão gravada.
+    """
+    consulta = db.query(
+        func.avg(OrdemServico.data_conclusao - OrdemServico.data_abertura)
+    ).filter(
+        OrdemServico.status == "Concluída",
+        OrdemServico.data_conclusao.isnot(None),
+    )
+    media = _periodo(consulta, data_de, data_ate).scalar()
+    return float(media) if media is not None else None
+
+
+def total_itens(db: Session, data_de=None, data_ate=None) -> int:
+    """Quantos bens foram movimentados no período (soma dos itens de todas as O.S.)."""
+    consulta = db.query(func.count(OsItem.id)).join(
+        OrdemServico, OrdemServico.id == OsItem.os_id
+    )
+    return _periodo(consulta, data_de, data_ate).scalar() or 0
+
+
+def pendentes_mais_antigas(db: Session, limite: int = 8) -> list[OrdemServico]:
+    """As O.S. Pendentes abertas há mais tempo — o que está parado esperando.
+
+    NÃO respeita o filtro de período de propósito: uma pendência velha continua sendo
+    um problema hoje, mesmo que tenha sido aberta fora do período que o chefe está
+    olhando. É a lista de "não deixe isso esquecido".
+    """
+    return (
+        db.query(OrdemServico)
+        .options(
+            joinedload(OrdemServico.modalidade),
+            joinedload(OrdemServico.setor_demandante),
+        )
+        .filter(OrdemServico.status == "Pendente")
+        .order_by(OrdemServico.data_abertura)
+        .limit(limite)
         .all()
     )

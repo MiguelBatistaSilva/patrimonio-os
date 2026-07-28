@@ -177,8 +177,6 @@ def _detalhe() -> rx.Component:
                     rx.table.row(
                         rx.table.column_header_cell("Tombo ou N/S"),
                         rx.table.column_header_cell("Descrição"),
-                        rx.table.column_header_cell("Origem"),
-                        rx.table.column_header_cell("Destino"),
                     ),
                 ),
                 rx.table.body(
@@ -187,8 +185,6 @@ def _detalhe() -> rx.Component:
                         lambda it: rx.table.row(
                             rx.table.cell(it.tombo_ns),
                             rx.table.cell(it.descricao),
-                            rx.table.cell(it.origem),
-                            rx.table.cell(it.destino),
                         ),
                     ),
                 ),

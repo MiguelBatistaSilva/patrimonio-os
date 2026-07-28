@@ -72,16 +72,12 @@ def _linha_item_preenchida(it) -> rx.Component:
     return rx.table.row(
         rx.table.cell(it.tombo_ns, height="30px"),
         rx.table.cell(it.descricao),
-        rx.table.cell(it.origem),
-        rx.table.cell(it.destino),
     )
 
 
 def _linha_item_vazia() -> rx.Component:
     return rx.table.row(
         rx.table.cell(" ", height="30px"),
-        rx.table.cell(" "),
-        rx.table.cell(" "),
         rx.table.cell(" "),
     )
 
@@ -183,6 +179,10 @@ def _documento() -> rx.Component:
                 spacing="2",
                 width="100%",
             ),
+            # Assinatura do operacional que executou o atendimento (à mão, no papel).
+            # Em caixa de 55% para a linha não atravessar a folha inteira.
+            rx.box(height="6px"),
+            rx.box(_linha_branca("Assinatura"), width="55%"),
         ),
 
         # ── Seções EM BRANCO (preencher à mão) ──
@@ -208,8 +208,6 @@ def _documento() -> rx.Component:
                     rx.table.row(
                         rx.table.column_header_cell("Tombo ou N/S"),
                         rx.table.column_header_cell("Descrição"),
-                        rx.table.column_header_cell("Origem"),
-                        rx.table.column_header_cell("Destino"),
                     ),
                 ),
                 rx.table.body(

@@ -110,7 +110,7 @@ def _equipe() -> rx.Component:
 
 
 def _linha_item(item, idx) -> rx.Component:
-    """Uma linha editável de item: 4 campos de texto + botão de remover.
+    """Uma linha editável de item: 2 campos de texto + botão de remover.
 
     Igual às checkboxes da equipe, estes inputs NÃO usam name= — são controlados pelo
     state (itens_form). Cada tecla dispara set_item_campo(idx, campo, valor).
@@ -124,8 +124,8 @@ def _linha_item(item, idx) -> rx.Component:
             width="100%",
         )
 
-    # Na criação preenchemos só Tombo/N/S e Descrição (o bem movimentado). Origem e
-    # Destino ficam em branco no modelo — a impressão deixa espaço para anotá-los à mão.
+    # Só Tombo/N/S e Descrição (o bem movimentado). Origem/Destino continuam existindo
+    # no model (sempre nulos), mas saíram do formulário, do detalhe e da impressão.
     return rx.hstack(
         campo("tombo_ns", "Tombo ou N/S"),
         campo("descricao", "Descrição (bem movimentado)"),

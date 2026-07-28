@@ -31,6 +31,12 @@ app = rx.App(
         font_family="Inter",
     ),
     stylesheets=["/print.css"],  # regras de @media print (esconder botões etc.)
+    # Ícone da aba do navegador. Sem isto o projeto não tinha favicon nenhum, e o
+    # navegador desenhava o ícone genérico dele. Reaproveita o brasão que já está em
+    # assets/ (o mesmo do cabeçalho da impressão) — nenhum arquivo novo.
+    head_components=[
+        rx.el.link(rel="icon", href="/brasao_ceara.svg", type="image/svg+xml"),
+    ],
 )
 
 # Página pública: a tela de login responde tanto em "/" quanto em "/login".
