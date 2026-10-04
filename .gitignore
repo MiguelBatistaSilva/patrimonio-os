@@ -197,5 +197,6 @@ _backup/
 _update.log
 # Notas de trabalho / briefing (uso local, não faz parte do app)
 HANDOFF.md
+DEPLOY.md
 # Pasta de referência de outro projeto (não faz parte deste app)
 Outa_Aplicação/
