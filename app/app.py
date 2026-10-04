@@ -16,12 +16,14 @@ from pages.cadastros import cadastros_page
 from pages.usuarios import usuarios_page
 from pages.ordens import ordens_page
 from pages.ordem_form import ordem_form_page
+from pages.ordens_importar import ordens_importar_page
 from pages.ordem_detalhe import ordem_detalhe_page
 from pages.ordem_print import ordem_print_page
 from state.auth_state import AuthState
 from state.dominio_state import DominioState
 from state.usuario_state import UsuarioState
 from state.os_state import OsState
+from state.importacao_state import ImportacaoState
 from state.dashboard_state import DashboardState
 
 app = rx.App(
@@ -87,6 +89,13 @@ app.add_page(
     route="/ordens/nova",
     title="Nova O.S. — Patrimônio",
     on_load=[AuthState.check_operacional, OsState.carregar_opcoes],
+)
+# Importação em lote: cola um texto e cria várias O.S. (qualquer usuário operacional).
+app.add_page(
+    ordens_importar_page,
+    route="/ordens/importar",
+    title="Importar O.S. — Patrimônio",
+    on_load=[AuthState.check_operacional, ImportacaoState.carregar],
 )
 # Edição: reaproveita o formulário, mas pré-preenchido. Só admin (check_admin).
 app.add_page(

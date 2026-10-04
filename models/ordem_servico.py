@@ -111,14 +111,13 @@ class OsEquipe(Base):
 
 
 class OsItem(Base):
-    """Um bem movimentado/atendido numa O.S.: tombo (ou nº de série), descrição, origem
-    e destino.
+    """Um bem movimentado/atendido numa O.S.: tombo (ou nº de série) e descrição.
 
     Antes isto só existia como uma tabela EM BRANCO no papel (preenchida à mão). Agora
     virou dado: cada O.S. tem zero-ou-mais itens (1:N), cadastrados já na criação. É o
     mesmo desenho da equipe (OsEquipe) — uma linha por item, ligada à O.S. pelo os_id.
 
-    Todos os campos são opcionais: o operador pode deixar um em branco (ex.: um bem sem
+    Os dois campos são opcionais: o operador pode deixar um em branco (ex.: um bem sem
     tombo). A ausência de itens também é permitida (a seção é opcional na criação).
     """
 
@@ -128,7 +127,5 @@ class OsItem(Base):
     os_id: Mapped[int] = mapped_column(ForeignKey("ordem_servico.id"))
     tombo_ns: Mapped[str | None]  # "Tombo ou N/S" no formulário/impressão
     descricao: Mapped[str | None]
-    origem: Mapped[str | None]
-    destino: Mapped[str | None]
 
     ordem: Mapped["OrdemServico"] = relationship(back_populates="itens")

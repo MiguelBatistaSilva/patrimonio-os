@@ -40,6 +40,7 @@ class LinhaOS:
     id: int
     numero: str
     data_abertura: str
+    processo_chamado: str
     modalidade: str
     status: str
 
@@ -54,8 +55,6 @@ class ItemOS:
 
     tombo_ns: str = ""
     descricao: str = ""
-    origem: str = ""
-    destino: str = ""
 
 
 @dataclass
@@ -199,7 +198,7 @@ class OsState(rx.State):
         else:
             self.equipe_selecionada = [f.valor for f in self.funcionarios]
 
-    # Itens do formulário de criação. Cada linha é um dict com as 4 colunas; o operador
+    # Itens do formulário de criação. Cada linha é um dict com as 2 colunas; o operador
     # adiciona/remove linhas e digita nos campos. É controlado pelo state (não vai no
     # form_data) — mesma filosofia da equipe. Começa vazio: itens são OPCIONAIS.
     itens_form: list[dict[str, str]] = []
@@ -213,7 +212,7 @@ class OsState(rx.State):
 
     @staticmethod
     def _item_vazio() -> dict[str, str]:
-        return {"tombo_ns": "", "descricao": "", "origem": "", "destino": ""}
+        return {"tombo_ns": "", "descricao": ""}
 
     def adicionar_item(self):
         # Reatribui a lista (em vez de mutar) para o Reflex perceber e redesenhar.
@@ -265,6 +264,7 @@ class OsState(rx.State):
                     id=o.id,
                     numero=o.numero,
                     data_abertura=o.data_abertura.strftime("%d/%m/%Y"),
+                    processo_chamado=o.processo_chamado or "—",
                     modalidade=o.modalidade.nome if o.modalidade else "—",
                     status=o.status,
                 )
@@ -335,8 +335,6 @@ class OsState(rx.State):
                     ItemOS(
                         tombo_ns=i.tombo_ns or "",
                         descricao=i.descricao or "",
-                        origem=i.origem or "",
-                        destino=i.destino or "",
                     )
                     for i in o.itens
                 ],
@@ -421,8 +419,6 @@ class OsState(rx.State):
                 {
                     "tombo_ns": i.tombo_ns or "",
                     "descricao": i.descricao or "",
-                    "origem": i.origem or "",
-                    "destino": i.destino or "",
                 }
                 for i in o.itens
             ]
@@ -480,7 +476,7 @@ class OsState(rx.State):
         itens = []
         for linha in self.itens_form:
             campos = {c: (linha.get(c) or "").strip() or None for c in
-                      ("tombo_ns", "descricao", "origem", "destino")}
+                      ("tombo_ns", "descricao")}
             if any(campos.values()):
                 itens.append(campos)
 

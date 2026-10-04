@@ -24,11 +24,12 @@ def _linha(o) -> rx.Component:
     return rx.table.row(
         rx.table.cell(rx.text(o.numero, weight="bold")),
         rx.table.cell(o.data_abertura),
+        rx.table.cell(o.processo_chamado),
         rx.table.cell(o.modalidade),
         rx.table.cell(rx.badge(o.status, color_scheme=_cor_status(o.status))),
         rx.table.cell(
             rx.link(
-                rx.button("Abrir", size="1", variant="soft"),
+                rx.button("Abrir", size="1", variant="soft", color_scheme="purple"),
                 href="/ordens/" + o.id.to_string(),
             ),
         ),
@@ -110,6 +111,15 @@ def ordens_page() -> rx.Component:
             rx.heading("Ordens de Serviço", size="7"),
             rx.spacer(),
             rx.link(
+                rx.button(
+                    rx.icon("clipboard-paste", size=16),
+                    "Importar em lote",
+                    size="3",
+                    variant="soft",
+                ),
+                href="/ordens/importar",
+            ),
+            rx.link(
                 rx.button(rx.icon("plus", size=16), "Nova O.S.", size="3"),
                 href="/ordens/nova",
             ),
@@ -122,6 +132,7 @@ def ordens_page() -> rx.Component:
                 rx.table.row(
                     rx.table.column_header_cell("Número"),
                     rx.table.column_header_cell("Abertura"),
+                    rx.table.column_header_cell("Processo / Chamado"),
                     rx.table.column_header_cell("Modalidade"),
                     rx.table.column_header_cell("Status"),
                     rx.table.column_header_cell(""),

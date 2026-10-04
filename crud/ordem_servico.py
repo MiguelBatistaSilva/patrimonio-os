@@ -49,7 +49,7 @@ def criar(
     - `operador_id`: vem do usuário logado (não do formulário).
     - `funcionario_ids`: quem vai na equipe (N:N via os_equipe).
     - `itens`: bens movimentados/atendidos; cada item é um dict com as chaves
-      tombo_ns/descricao/origem/destino (1:N via os_item). Opcional — a O.S. pode
+      tombo_ns/descricao (1:N via os_item). Opcional — a O.S. pode
       nascer sem nenhum item.
     O status nasce "Pendente" (default no model).
     """
@@ -64,11 +64,55 @@ def criar(
         OsEquipe(funcionario_id=fid) for fid in (funcionario_ids or [])
     ]
     # Mesma ideia para os itens: uma linha de os_item por dict. O ** espalha as chaves
-    # (tombo_ns/descricao/origem/destino) direto no construtor do model.
+    # (tombo_ns/descricao) direto no construtor do model.
     ordem.itens = [OsItem(**item) for item in (itens or [])]
     db.add(ordem)
     db.commit()
     return ordem
+
+
+def criar_lote(db: Session, operador_id: int, ordens: list[dict]) -> list[OrdemServico]:
+    """CREATE em lote — grava várias O.S. (com seus itens) numa só transação.
+
+    `ordens`: lista de {"dados": {...campos da O.S....}, "itens": [{...}, ...]}.
+
+    TUDO OU NADA: um único commit no fim. Se qualquer uma falhar, o rollback desfaz o
+    lote inteiro — nunca fica metade das O.S. gravada e metade não.
+
+    O flush() a cada O.S. é essencial: a sessão tem autoflush desligado, então sem ele
+    o _proximo_numero não enxergaria a O.S. recém-adicionada e daria o MESMO número a
+    todas (a coluna é única, o commit estouraria).
+    """
+    criadas = []
+    try:
+        for item in ordens:
+            ordem = OrdemServico(
+                numero=_proximo_numero(db),
+                operador_id=operador_id,
+                **item["dados"],
+            )
+            ordem.itens = [OsItem(**i) for i in item.get("itens", [])]
+            db.add(ordem)
+            db.flush()  # grava (ainda sem commit) para o próximo número sair certo
+            criadas.append(ordem)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return criadas
+
+
+def chamados_existentes(db: Session, chamados: list[str]) -> set[str]:
+    """Dos Chamados informados, quais já existem em alguma O.S. (para o aviso de duplicidade)."""
+    if not chamados:
+        return set()
+    linhas = (
+        db.query(OrdemServico.processo_chamado)
+        .filter(OrdemServico.processo_chamado.in_(chamados))
+        .distinct()
+        .all()
+    )
+    return {chamado for (chamado,) in linhas}
 
 
 def atualizar(

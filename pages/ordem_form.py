@@ -124,8 +124,7 @@ def _linha_item(item, idx) -> rx.Component:
             width="100%",
         )
 
-    # Só Tombo/N/S e Descrição (o bem movimentado). Origem/Destino continuam existindo
-    # no model (sempre nulos), mas saíram do formulário, do detalhe e da impressão.
+    # Só Tombo/N/S e Descrição (o bem movimentado).
     return rx.hstack(
         campo("tombo_ns", "Tombo ou N/S"),
         campo("descricao", "Descrição (bem movimentado)"),
