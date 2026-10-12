@@ -200,3 +200,6 @@ HANDOFF.md
 DEPLOY.md
 # Pasta de referência de outro projeto (não faz parte deste app)
 Outa_Aplicação/
+
+# Scraper de teste do CATINET (perfil do navegador, dumps de HTML com dados reais)
+scraper_teste/

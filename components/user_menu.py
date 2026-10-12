@@ -10,6 +10,7 @@ estilo idiomático que combinamos. As funções com "_" na frente são auxiliare
 import reflex as rx
 
 from state.auth_state import AuthState
+from state.catinet_state import ConfiguracoesState, CredenciaisState
 from state.export_state import ExportState
 from state.sidebar_state import SidebarState
 
@@ -44,12 +45,16 @@ def _trigger() -> rx.Component:
 
 def _menu() -> rx.Component:
     return rx.dropdown_menu.content(
-        rx.dropdown_menu.item(
-            rx.hstack(
-                rx.icon("settings", size=14),
-                rx.text("Configurações", size="2"),
-                spacing="2",
-                align="center",
+        rx.cond(
+            ~AuthState.is_visualizador,
+            rx.dropdown_menu.item(
+                rx.hstack(
+                    rx.icon("settings", size=14),
+                    rx.text("Configurações", size="2"),
+                    spacing="2",
+                    align="center",
+                ),
+                on_click=ConfiguracoesState.abrir,
             ),
         ),
         rx.dropdown_menu.item(
@@ -75,6 +80,18 @@ def _menu() -> rx.Component:
                 align="center",
             ),
             on_click=ExportState.abrir,
+        ),
+        rx.cond(
+            ~AuthState.is_visualizador,
+            rx.dropdown_menu.item(
+                rx.hstack(
+                    rx.icon("key-round", size=14),
+                    rx.text("Credenciais", size="2"),
+                    spacing="2",
+                    align="center",
+                ),
+                on_click=CredenciaisState.abrir,
+            ),
         ),
         rx.dropdown_menu.separator(),
         rx.dropdown_menu.item(
@@ -152,6 +169,131 @@ def _dialog_exportar() -> rx.Component:
     )
 
 
+def _campo_texto(label: str, valor, on_change, **props) -> rx.Component:
+    return rx.vstack(
+        rx.text(label, size="2", weight="medium"),
+        rx.input(value=valor, on_change=on_change, width="100%", **props),
+        spacing="1",
+        align="start",
+        width="100%",
+    )
+
+
+def _dialog_credenciais() -> rx.Component:
+    """Diálogo das credenciais do CATINET. A senha vai para o cofre do Windows."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Credenciais"),
+            rx.dialog.description(
+                "Usuário e senha do CATINET, usados pelo Pipeline de Dados. A senha fica "
+                "guardada no cofre do Windows desta máquina, não no banco de dados.",
+                size="2",
+                color=rx.color("gray", 10),
+            ),
+            rx.vstack(
+                _campo_texto(
+                    "Usuário", CredenciaisState.usuario, CredenciaisState.set_usuario
+                ),
+                _campo_texto(
+                    "Senha",
+                    CredenciaisState.senha,
+                    CredenciaisState.set_senha,
+                    type="password",
+                    placeholder=rx.cond(
+                        CredenciaisState.tem_senha_salva,
+                        "Já salva — deixe em branco para manter",
+                        "",
+                    ),
+                ),
+                rx.cond(
+                    CredenciaisState.erro != "",
+                    rx.text(CredenciaisState.erro, color=rx.color("red", 10), size="2"),
+                ),
+                rx.hstack(
+                    rx.dialog.close(
+                        rx.button("Cancelar", variant="soft", color_scheme="gray"),
+                    ),
+                    rx.button(
+                        rx.icon("save", size=16),
+                        "Salvar",
+                        on_click=CredenciaisState.salvar,
+                    ),
+                    justify="end",
+                    spacing="3",
+                    width="100%",
+                ),
+                spacing="3",
+                margin_top="12px",
+            ),
+            max_width="460px",
+        ),
+        open=CredenciaisState.aberto,
+        on_open_change=CredenciaisState.ao_abrir,
+    )
+
+
+def _dialog_configuracoes() -> rx.Component:
+    """Diálogo de Configurações: por enquanto, só o link da fila do CATINET."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Configurações"),
+            rx.dialog.description(
+                "Endereço da fila do CATINET de onde o Pipeline de Dados lê os chamados "
+                "(abra a fila no navegador e copie o endereço inteiro) e a frequência "
+                "da busca automática.",
+                size="2",
+                color=rx.color("gray", 10),
+            ),
+            rx.vstack(
+                _campo_texto(
+                    "Link da fila do CATINET",
+                    ConfiguracoesState.url_fila,
+                    ConfiguracoesState.set_url_fila,
+                    placeholder="https://.../assystnet/#eventMonitor/NÚMERO",
+                ),
+                rx.hstack(
+                    rx.switch(
+                        checked=ConfiguracoesState.auto_ligado,
+                        on_change=ConfiguracoesState.set_auto_ligado,
+                    ),
+                    rx.text("Buscar chamados automaticamente", size="2"),
+                    spacing="2",
+                    align="center",
+                ),
+                _campo_texto(
+                    "Intervalo da busca automática (minutos)",
+                    ConfiguracoesState.intervalo,
+                    ConfiguracoesState.set_intervalo,
+                    type="number",
+                    disabled=~ConfiguracoesState.auto_ligado,
+                ),
+                rx.cond(
+                    ConfiguracoesState.erro != "",
+                    rx.text(ConfiguracoesState.erro, color=rx.color("red", 10), size="2"),
+                ),
+                rx.hstack(
+                    rx.dialog.close(
+                        rx.button("Cancelar", variant="soft", color_scheme="gray"),
+                    ),
+                    rx.button(
+                        rx.icon("save", size=16),
+                        "Salvar",
+                        on_click=ConfiguracoesState.salvar,
+                    ),
+                    justify="end",
+                    spacing="3",
+                    width="100%",
+                ),
+                spacing="3",
+                margin_top="12px",
+            ),
+            max_width="460px",
+        ),
+        open=ConfiguracoesState.aberto,
+        on_open_change=ConfiguracoesState.ao_abrir,
+    )
+
+
 def user_menu() -> rx.Component:
     return rx.box(
         rx.center(
@@ -165,6 +307,8 @@ def user_menu() -> rx.Component:
         # O diálogo fica FORA do dropdown de propósito: ao clicar num item, o dropdown
         # se fecha e some da tela — levaria o diálogo junto antes de ele aparecer.
         _dialog_exportar(),
+        _dialog_credenciais(),
+        _dialog_configuracoes(),
         width="100%",
         padding_top="4px",
         padding_bottom="8px",

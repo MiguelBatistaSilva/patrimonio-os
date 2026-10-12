@@ -30,6 +30,7 @@ class NavItem:
 NAV_ITEMS: list[NavItem] = [
     NavItem("layout-dashboard", "Dashboard", "/dashboard", section="main", visivel_visualizador=True),
     NavItem("clipboard-list", "Ordens de Serviço", "/ordens", section="main"),
+    NavItem("workflow", "Pipeline de Dados", "/pipeline", section="main"),
     NavItem("folder-cog", "Cadastros", "/cadastros", section="admin", admin_only=True),
     NavItem("users-round", "Usuários", "/usuarios", section="admin", admin_only=True),
 ]

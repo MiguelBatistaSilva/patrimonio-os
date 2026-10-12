@@ -17,6 +17,7 @@ from pages.usuarios import usuarios_page
 from pages.ordens import ordens_page
 from pages.ordem_form import ordem_form_page
 from pages.ordens_importar import ordens_importar_page
+from pages.chamados import chamados_page
 from pages.ordem_detalhe import ordem_detalhe_page
 from pages.ordem_print import ordem_print_page
 from state.auth_state import AuthState
@@ -24,7 +25,14 @@ from state.dominio_state import DominioState
 from state.usuario_state import UsuarioState
 from state.os_state import OsState
 from state.importacao_state import ImportacaoState
+from state.catinet_state import (  # noqa: F401
+    AlertasState,
+    ChamadosState,
+    ConfiguracoesState,
+    CredenciaisState,
+)
 from state.dashboard_state import DashboardState
+from services.catinet_pipeline import laco_automatico
 
 app = rx.App(
     theme=rx.theme(
@@ -40,6 +48,10 @@ app = rx.App(
         rx.el.link(rel="icon", href="/brasao_ceara.svg", type="image/svg+xml"),
     ],
 )
+
+# Vigia da pipeline: busca chamados no CATINET sozinho, a cada N minutos (se ligado e
+# configurado). Nasce e morre junto com o servidor.
+app.register_lifespan_task(laco_automatico)
 
 # Página pública: a tela de login responde tanto em "/" quanto em "/login".
 app.add_page(login_page, route="/", title="Login — Patrimônio")
@@ -96,6 +108,13 @@ app.add_page(
     route="/ordens/importar",
     title="Importar O.S. — Patrimônio",
     on_load=[AuthState.check_operacional, ImportacaoState.carregar],
+)
+# Pipeline de Dados: chamados lidos do CATINET; o operador aprova (vira O.S.) ou declina.
+app.add_page(
+    chamados_page,
+    route="/pipeline",
+    title="Pipeline de Dados — Patrimônio",
+    on_load=[AuthState.check_operacional, ChamadosState.abrir],
 )
 # Edição: reaproveita o formulário, mas pré-preenchido. Só admin (check_admin).
 app.add_page(

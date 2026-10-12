@@ -1,16 +1,17 @@
 """
 atualizar.py — Auto-atualizador do Sistema de O.S. da Seção de Patrimônio.
 
-O QUE FAZ (roda ANTES do 'reflex run', chamado pelo iniciar_patrimonio.bat):
+O QUE FAZ (roda SOZINHO, pelo atualizar_patrimonio.bat, com a aplicação FECHADA;
+não faz mais parte da inicialização — o iniciar_patrimonio.bat só inicia):
   1. Descobre a versão LOCAL (lendo version.py) e a REMOTA (version.json no GitHub).
   2. Se a remota for maior, baixa o .zip do repositório e troca os arquivos por cima,
      PRESERVANDO .env, banco, .venv e os dados locais.
   3. Faz um backup da versão anterior em _backup/ antes de trocar (rede de segurança).
   4. Roda pip install e alembic upgrade (caso a atualização traga libs/migrations novas).
 
-PRINCÍPIO DE OURO — FAIL-OPEN: se QUALQUER coisa der errado (sem internet, GitHub fora,
-erro de download), o script DESISTE em silêncio e deixa o app abrir normalmente.
-Atualizar nunca pode impedir o chefe de usar o sistema.
+PRINCÍPIO DE OURO — FAIL-SAFE: se QUALQUER coisa der errado (sem internet, GitHub fora,
+erro de download), o script DESISTE sem alterar nada e conta o motivo na tela e no
+_update.log. A versão que já está instalada continua funcionando.
 
 Usa somente a biblioteca padrão do Python (sem 'requests'), para não depender de nada
 que precise ser instalado antes de o updater rodar.
@@ -40,9 +41,9 @@ LOG_FILE = BASE_DIR / "_update.log"
 EXCLUIR_DIRS = [".venv", ".web", ".states", "_backup", ".git", "__pycache__"]
 # Arquivos protegidos de sobrescrita:
 #   .env                    -> segredos locais (senha do banco), nunca tocar
-#   iniciar_patrimonio.bat  -> sobrescrever um .bat EM EXECUÇÃO corrompe o Windows
+#   atualizar_patrimonio.bat -> sobrescrever um .bat EM EXECUÇÃO corrompe o Windows
 #   _update.log             -> nosso próprio log
-EXCLUIR_FILES = [".env", "iniciar_patrimonio.bat", "_update.log"]
+EXCLUIR_FILES = [".env", "atualizar_patrimonio.bat", "_update.log"]
 
 UA = {"User-Agent": "patrimonio-updater"}
 
@@ -73,13 +74,12 @@ def ler_versao_local() -> str:
 def ler_versao_remota() -> str | None:
     """Busca o version.json publicado no GitHub. Devolve None se não conseguir.
 
-    Timeout curto (3s) de propósito: no dia a dia o chefe usa a rede cabeada, cujo
-    firewall bloqueia o GitHub. Como o firewall engole o pacote em silêncio, o
-    urlopen esperaria o timeout inteiro ANTES de desistir e abrir o app. 3s mantém
-    a espera diária baixa; no dia de atualizar (no 5G) a resposta vem bem antes disso.
+    Timeout de 10s: a atualização agora é um ato deliberado (bat próprio), então não há
+    pressa. Na rede cabeada do TJCE o firewall bloqueia o GitHub e engole o pacote em
+    silêncio; o urlopen espera o timeout e desiste, sem alterar nada.
     """
     req = urllib.request.Request(VERSION_URL, headers=UA)
-    with urllib.request.urlopen(req, timeout=3) as r:
+    with urllib.request.urlopen(req, timeout=10) as r:
         return json.loads(r.read().decode("utf-8")).get("version")
 
 
@@ -141,10 +141,10 @@ def main() -> None:
         remota = ler_versao_remota()
 
         if not remota:
-            log("Não foi possível ler a versão remota. Seguindo sem atualizar.")
+            log("Não foi possível consultar a versão no GitHub (sem internet ou rede bloqueada). Nada foi alterado.")
             return
         if not versao_maior(remota, local):
-            log(f"Já está na versão mais recente ({local}).")
+            log(f"Já está na versão mais recente ({local}). Nada a fazer.")
             return
 
         log(f"Nova versão disponível: {remota} (local: {local}). Baixando...")
@@ -176,8 +176,8 @@ def main() -> None:
         log(f"Atualização para {remota} concluída com sucesso.")
 
     except Exception as e:
-        # Fail-open: nunca impede o app de abrir.
-        log(f"Atualização ignorada por erro: {e}")
+        # Fail-safe: o que já está instalado continua funcionando.
+        log(f"Atualização NÃO concluída por erro: {e}")
     finally:
         if tmp is not None:
             shutil.rmtree(tmp, ignore_errors=True)

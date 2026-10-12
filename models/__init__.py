@@ -16,6 +16,7 @@ from models.dominio import (
     Setor,
 )
 from models.ordem_servico import OrdemServico, OsEquipe, OsItem
+from models.chamado import ChamadoCatinet, ConfigSistema
 
 __all__ = [
     "User",
@@ -29,4 +30,6 @@ __all__ = [
     "OrdemServico",
     "OsEquipe",
     "OsItem",
+    "ChamadoCatinet",
+    "ConfigSistema",
 ]
